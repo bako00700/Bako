@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>برنامج محاسبة المتاجر الغذائية</title>
+<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2@1.8.4/dist/quagga.min.js"></script>
+<style>
+  :root{
+    --bg:#f4f6f9; --card:#fff; --line:#e2e8f0; --txt:#1e293b;
+    --main:#0f766e; --main2:#115e59; --warn:#dc2626; --ok:#16a34a; --amber:#f59e0b;
+  }
+  *{box-sizing:border-box; font-family:"Segoe UI", Tahoma, Arial, sans-serif;}
+  body{margin:0; background:var(--bg); color:var(--txt);}
+  header{background:var(--main); color:#fff; padding:12px 18px; display:flex; flex-wrap:wrap;
+         align-items:center; gap:14px; box-shadow:0 2px 8px rgba(0,0,0,.15);}
+  header h1{font-size:19px; margin:0; font-weight:700;}
+  nav{display:flex; gap:6px; flex-wrap:wrap; margin-inline-start:auto;}
+  nav button{background:rgba(255,255,255,.15); color:#fff; border:0; padding:9px 14px;
+             border-radius:8px; cursor:pointer; font-size:14px;}
+  nav button.active, nav button:hover{background:#fff; color:var(--main); font-weight:700;}
+  main{padding:16px; max-width:1250px; margin:auto;}
+  .tab{display:none;} .tab.active{display:block;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px;
+        padding:16px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.04);}
+  .card h2{margin:0 0 14px; font-size:17px; color:var(--main2);
+           border-bottom:2px solid var(--line); padding-bottom:8px;}
+  .grid{display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));}
+  label{display:block; font-size:13px; margin-bottom:4px; font-weight:600; color:#475569;}
+  input, select{width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:8px;
+        font-size:14px; background:#fff;}
+  input:focus, select:focus{outline:2px solid var(--main); border-color:var(--main);}
+  button.btn{background:var(--main); color:#fff; border:0; padding:10px 16px; border-radius:8px;
+        cursor:pointer; font-size:14px; font-weight:600;}
+  button.btn:hover{background:var(--main2);}
+  button.ghost{background:#e2e8f0; color:#334155;}
+  button.red{background:var(--warn);} button.green{background:var(--ok);} button.amber{background:var(--amber);}
+  table{width:100%; border-collapse:collapse; font-size:14px;}
+  th, td{padding:9px 8px; border-bottom:1px solid var(--line); text-align:right;}
+  th{background:#f1f5f9; font-size:13px; color:#475569;}
+  tbody tr:hover{background:#f8fafc;}
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:end;}
+  .row > *{flex:1; min-width:130px;}
+  .row > button{flex:0 0 auto;}
+  .stats{display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));}
+  .stat{background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; text-align:center;}
+  .stat b{display:block; font-size:22px; color:var(--main2); margin-top:6px;}
+  .stat span{font-size:13px; color:#64748b;}
+  .badge{padding:3px 9px; border-radius:20px; font-size:12px; font-weight:700;}
+  .b-ok{background:#dcfce7; color:#166534;} .b-low{background:#fee2e2; color:#991b1b;}
+  .b-out{background:#1e293b; color:#fff;}
+  .totals{display:flex; gap:16px; flex-wrap:wrap; justify-content:flex-start;
+          background:#f1f5f9; padding:12px; border-radius:10px; margin-top:12px; font-size:15px;}
+  .totals div b{color:var(--main2); font-size:17px;}
+  .modal{position:fixed; inset:0; background:rgba(15,23,42,.75); display:flex;
+         align-items:center; justify-content:center; z-index:99; padding:14px;}
+  .modal.hidden{display:none;}
+  .modal-box{background:#fff; border-radius:14px; padding:16px; width:100%; max-width:520px;}
+  #camView{width:100%; height:300px; background:#000; border-radius:10px; overflow:hidden; position:relative;}
+  #camView video, #camView canvas{width:100% !important; height:100% !important; object-fit:cover;}
+  #camView canvas.drawingBuffer{position:absolute; inset:0;}
+  .hint{font-size:13px; color:#64748b; margin:8px 0;}
+  .alert-item{display:flex; justify-content:space-between; align-items:center; gap:10px;
+              padding:10px; border:1px solid #fecaca; background:#fef2f2;
+              border-radius:9px; margin-bottom:8px;}
+  .empty{text-align:center; color:#94a3b8; padding:22px; font-size:14px;}
+  @media print{ header, nav, .no-print{display:none !important;} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛒 برنامج محاسبة المتاجر الغذائية</h1>
+  <nav>
+    <button data-tab="pos" class="active">نقطة البيع</button>
+    <button data-tab="products">المنتجات</button>
+    <button data-tab="stock">المخزون والتنبيهات</button>
+    <button data-tab="invoices">الفواتير</button>
+    <button data-tab="reports">التقارير</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ============ نقطة البيع ============ -->
+  <section id="tab-pos" class="tab active">
+    <div class="card">
+      <h2>إصدار فاتورة مبيعات</h2>
+      <div class="row">
+        <div style="flex:2">
+          <label>الباركود (أو امسح بالكاميرا)</label>
+          <input id="posBarcode" placeholder="امسح الباركود أو اكتبه ثم Enter" autocomplete="off">
+        </div>
+        <button class="btn amber" onclick="openCam('pos')">📷 مسح بالكاميرا</button>
+        <button class="btn" onclick="addByBarcode()">➕ إضافة</button>
+      </div>
+      <p class="hint">💡 يدعم أيضاً قارئ الباركود USB — فقط امسح وسيُضاف تلقائياً.</p>
+    </div>
+
+    <div class="card">
+      <h2>الأصناف في الفاتورة</h2>
+      <div style="overflow:auto">
+        <table>
+          <thead>
+            <tr><th>الصنف</th><th>الباركود</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th><th></th></tr>
+          </thead>
+          <tbody id="cartBody"></tbody>
+        </table>
+      </div>
+
+      <div class="totals">
+        <div>الإجمالي: <b id="tTotal">0.00</b></div>
+        <div>الكلفة: <b id="tCost">0.00</b></div>
+        <div>الربح: <b id="tProfit">0.00</b></div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <div><label>المبلغ المدفوع</label><input id="paid" type="number" step="0.01" value="0" oninput="calcChange()"></div>
+        <div><label>الباقي للعميل</label><input id="change" readonly></div>
+        <button class="btn green" onclick="issueInvoice()">🧾 إصدار الفاتورة</button>
+        <button class="btn ghost" onclick="clearCart()">إلغاء</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ المنتجات ============ -->
+  <section id="tab-products" class="tab">
+    <div class="card">
+      <h2 id="pFormTitle">إضافة منتج جديد</h2>
+      <input type="hidden" id="pId">
+      <div class="grid">
+        <div>
+          <label>الباركود</label>
+          <div class="row" style="gap:6px">
+            <input id="pBarcode" placeholder="امسح أو اكتب" style="flex:1">
+            <button class="btn amber" style="flex:0 0 auto" onclick="openCam('product')">📷</button>
+          </div>
+        </div>
+        <div><label>اسم المنتج</label><input id="pName" placeholder="مثال: أرز بسمتي 1كغ"></div>
+        <div><label>الوحدة</label>
+          <select id="pUnit">
+            <option>قطعة</option><option>كغ</option><option>غم</option>
+            <option>لتر</option><option>علبة</option><option>كرتون</option>
+          </select>
+        </div>
+        <div><label>سعر الكلفة</label><input id="pCost" type="number" step="0.01" value="0"></div>
+        <div><label>سعر البيع</label><input id="pPrice" type="number" step="0.01" value="0"></div>
+        <div><label>الكمية بالمخزون</label><input id="pQty" type="number" step="0.01" value="0"></div>
+        <div><label>الحد الأدنى للمخزون</label><input id="pMin" type="number" step="0.01" value="5"></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" onclick="saveProduct()">💾 حفظ المنتج</button>
+        <button class="btn ghost" onclick="resetProductForm()">جديد / تفريغ</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>قائمة المنتجات</h2>
+      <input id="pSearch" placeholder="🔎 بحث بالاسم أو الباركود..." oninput="renderProducts()" style="margin-bottom:10px">
+      <div style="overflow:auto">
+        <table>
+          <thead>
+            <tr><th>الباركود</th><th>الاسم</th><th>الكلفة</th><th>البيع</th>
+                <th>الكمية</th><th>الحد الأدنى</th><th>الحالة</th><th></th></tr>
+          </thead>
+          <tbody id="prodBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ المخزون والتنبيهات ============ -->
+  <section id="tab-stock" class="tab">
+    <div class="card">
+      <h2>⚠️ تنبيهات الحد الأدنى للمخزون</h2>
+      <div id="alertsBox"></div>
+    </div>
+    <div class="card">
+      <h2>📦 جرد المخزون</h2>
+      <div class="stats" style="margin-bottom:14px">
+        <div class="stat"><span>عدد الأصناف</span><b id="sCount">0</b></div>
+        <div class="stat"><span>قيمة المخزون (كلفة)</span><b id="sCostVal">0.00</b></div>
+        <div class="stat"><span>قيمة المخزون (بيع)</span><b id="sSaleVal">0.00</b></div>
+        <div class="stat"><span>أصناف تحت الحد</span><b id="sLow" style="color:#dc2626">0</b></div>
+      </div>
+      <div style="overflow:auto">
+        <table>
+          <thead><tr><th>الباركود</th><th>الاسم</th><th>الكمية</th><th>الحد الأدنى</th>
+                     <th>كلفة الوحدة</th><th>قيمة المخزون</th><th>الحالة</th></tr></thead>
+          <tbody id="stockBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ الفواتير ============ -->
+  <section id="tab-invoices" class="tab">
+    <div class="card">
+      <h2>🧾 سجل فواتير المبيعات</h2>
+      <div style="overflow:auto">
+        <table>
+          <thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>عدد الأصناف</th>
+                     <th>الإجمالي</th><th>الربح</th><th></th></tr></thead>
+          <tbody id="invBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ التقارير ============ -->
+  <section id="tab-reports" class="tab">
+    <div class="card">
+      <h2>📊 ملخص الأداء</h2>
+      <div class="stats">
+        <div class="stat"><span>إجمالي المبيعات</span><b id="rSales">0.00</b></div>
+        <div class="stat"><span>إجمالي الكلفة</span><b id="rCost">0.00</b></div>
+        <div class="stat"><span>إجمالي الربح</span><b id="rProfit">0.00</b></div>
+        <div class="stat"><span>عدد الفواتير</span><b id="rInv">0</b></div>
+        <div class="stat"><span>قيمة المخزون</span><b id="rStock">0.00</b></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>💾 النسخ الاحتياطي</h2>
+      <div class="row">
+        <button class="btn" onclick="exportData()">⬇️ تصدير البيانات (JSON)</button>
+        <button class="btn ghost" onclick="document.getElementById('impFile').click()">⬆️ استيراد البيانات</button>
+        <input type="file" id="impFile" accept=".json" style="display:none" onchange="importData(event)">
+        <button class="btn red" onclick="clearAll()">🗑️ حذف كل البيانات</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ نافذة الكاميرا ============ -->
+<div id="camModal" class="modal hidden">
+  <div class="modal-box">
+    <h3 style="margin:0 0 10px; color:#115e59">📷 مسح الباركود بالكاميرا</h3>
+    <div id="camView"></div>
+    <p class="hint" id="camHint">وجّه الكاميرا نحو الباركود حتى يتم التعرف عليه تلقائياً...</p>
+    <button class="btn red" style="width:100%" onclick="closeCam()">إغلاق الكاميرا</button>
+  </div>
+</div>
+
+<!-- ============ نافذة تفاصيل الفاتورة ============ -->
+<div id="invModal" class="modal hidden">
+  <div class="modal-box" style="max-width:600px">
+    <h3 style="margin:0 0 12px; color:#115e59" id="invTitle">تفاصيل الفاتورة</h3>
+    <div id="invDetails"></div>
+    <button class="btn ghost" style="width:100%; margin-top:12px" onclick="document.getElementById('invModal').classList.add('hidden')">إغلاق</button>
+  </div>
+</div>
+
+<script>
+/* ================== إدارة البيانات ================== */
+const LS_KEY = 'foodStoreDB_v1';
+let db      = loadDB();
+let cart    = [];
+let scanMode = null;
+let camRunning = false;
+
+function loadDB(){
+  try{
+    const d = JSON.parse(localStorage.getItem(LS_KEY));
+    if(d && Array.isArray(d.products)) return d;
+  }catch(e){}
+  return seedDB();
+}
+function seedDB(){
+  const P = (barcode,name,unit,cost,price,qty,min)=>({
+    id:uid(), barcode, name, unit, cost, price, qty, min
+  });
+  return {
+    invNo: 1,
+    invoices: [],
+    products: [
+      P('6281000123456','أرز بسمتي 1كغ','كغ',4.50,6.00,40,10),
+      P('6281000123463','زيت دوار الشمس 1ل','لتر',6.20,8.00,25,8),
+      P('6281000123470','سكر أبيض 1كغ','كغ',2.80,3.75,50,12),
+      P('6281000123487','حليب مجفف 900غم','علبة',12.00,15.50,6,8),
+      P('6281000123494','معكرونة سباغيتي 500غم','قطعة',1.60,2.50,60,15),
+      P('6281000123500','شاي أسود 250غم','علبة',7.50,10.00,4,6)
+    ]
+  };
+}
+function saveDB(){ localStorage.setItem(LS_KEY, JSON.stringify(db)); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function money(n){ return Number(n||0).toFixed(2); }
+function esc(s){ return String(s??'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ================== التنقل بين التبويبات ================== */
+document.querySelectorAll('nav button').forEach(btn=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    renderAll();
+  };
+});
+
+/* ================== الكاميرا / الباركود ================== */
+function openCam(mode){
+  scanMode = mode;
+  document.getElementById('camModal').classList.remove('hidden');
+  document.getElementById('camHint').textContent = 'وجّه الكاميرا نحو الباركود...';
+  startCam();
+}
+function closeCam(){
+  stopCam();
+  document.getElementById('camModal').classList.add('hidden');
+}
+function startCam(){
+  if(camRunning) return;
+  camRunning = true;
+
+  Quagga.init({
+    inputStream: {
+      type: 'LiveStream',
+      target: document.querySelector('#camView'),
+      constraints: { facingMode: 'environment', width:{min:640}, height:{min:480} }
+    },
+    locator: { patchSize:'medium', halfSample:true },
+    numOfWorkers: Math.min(4, navigator.hardwareConcurrency || 2),
+    frequency: 10,
+    decoder: {
+      readers: ['ean_reader','ean_8_reader','code_128_reader','code_39_reader',
+                'upc_reader','upc_e_reader','codabar_reader','i2of5_reader']
+    },
+    locate: true
+  }, function(err){
+    if(err){
+      camRunning = false;
+      document.getElementById('camHint').textContent =
+        '⚠️ تعذر تشغيل الكاميرا: ' + err + ' — تأكد من السماح بالوصول للكاميرا وأن الموقع يعمل عبر HTTPS أو localhost.';
+      return;
+    }
+    Quagga.start();
+    document.getElementById('camHint').textContent = '✅ الكاميرا تعمل — وجّهها نحو الباركود';
+  });
+
+  Quagga.offDetected();
+  Quagga.onDetected(function(res){
+    if(!camRunning) return;
+    const code = res && res.codeResult && res.codeResult.code;
+    if(!code) return;
+    camRunning = false;
+    stopCam();
+    document.getElementById('camModal').classList.add('hidden');
+    handleScannedCode(code);
+  });
+}
+function stopCam(){
+  try{ Quagga.stop(); }catch(e){}
+  camRunning = false;
+  const v = document.querySelector('#camView');
+  if(v) v.innerHTML = '';
+}
+
+function handleScannedCode(code){
+  if(scanMode === 'product'){
+    document.getElementById('pBarcode').value = code;
+    const ex = db.products.find(p=>p.barcode===code);
+    if(ex){ loadProductToForm(ex.id); alert('هذا الباركود مسجّل مسبقاً: ' + ex.name); }
+  }else{
+    addToCartByBarcode(code);
+  }
+}
+
+/* ================== المنتجات ================== */
+function saveProduct(){
+  const id     = document.getElementById('pId').value;
+  const barcode= document.getElementById('pBarcode').value.trim();
+  const name   = document.getElementById('pName').value.trim();
+  if(!barcode){ alert('الرجاء إدخال الباركود'); return; }
+  if(!name){ alert('الرجاء إدخال اسم المنتج'); return; }
+
+  const dup = db.products.find(p=>p.barcode===barcode && p.id!==id);
+  if(dup){ alert('الباركود مستخدم لمنتج آخر: ' + dup.name); return; }
+
+  const data = {
+    barcode, name,
+    unit : document.getElementById('pUnit').value,
+    cost : +document.getElementById('pCost').value  || 0,
+    price: +document.getElementById('pPrice').value || 0,
+    qty  : +document.getElementById('pQty').value   || 0,
+    min  : +document.getElementById('pMin').value   || 0
+  };
+
+  if(id){
+    const p = db.products.find(x=>x.id===id);
+    Object.assign(p, data);
+  }else{
+    db.products.push({ id: uid(), ...data });
+  }
+  saveDB(); resetProductForm(); renderAll();
+}
+function loadProductToForm(id){
+  const p = db.products.find(x=>x.id===id);
+  if(!p) return;
+  document.getElementById('pId').value      = p.id;
+  document.getElementById('pBarcode').value = p.barcode;
+  document.getElementById('pName').value    = p.name;
+  document.getElementById('pUnit').value    = p.unit;
+  document.getElementById('pCost').value    = p.cost;
+  document.getElementById('pPrice').value   = p.price;
+  document.getElementById('pQty').value     = p.qty;
+  document.getElementById('pMin').value     = p.min;
+  document.getElementById('pFormTitle').textContent = 'تعديل المنتج: ' + p.name;
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+function resetProductForm(){
+  ['pId','pBarcode','pName'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('pCost').value  = 0;
+  document.getElementById('pPrice').value = 0;
+  document.getElementById('pQty').value   = 0;
+  document.getElementById('pMin').value   = 5;
+  document.getElementById('pUnit').value  = 'قطعة';
+  document.getElementById('pFormTitle').textContent = 'إضافة منتج جديد';
+}
+function deleteProduct(id){
+  const p = db.products.find(x=>x.id===id);
+  if(!p || !confirm('حذف المنتج: ' + p.name + ' ؟')) return;
+  db.products = db.products.filter(x=>x.id!==id);
+  saveDB(); renderAll();
+}
+
+function statusOf(p){
+  if(p.qty <= 0)      return '<span class="badge b-out">نفد المخزون</span>';
+  if(p.qty <= p.min)  return '<span class="badge b-low">تحت الحد الأدنى</span>';
+  return '<span class="badge b-ok">متوفر</span>';
+}
+
+function renderProducts(){
+  const q = (document.getElementById('pSearch').value || '').trim().toLowerCase();
+  const list = db.products.filter(p =>
+    !q || p.name.toLowerCase().includes(q) || p.barcode.includes(q));
+  const tb = document.getElementById('prodBody');
+  if(!list.length){ tb.innerHTML = '<tr><td colspan="8" class="empty">لا توجد منتجات مطابقة</td></tr>'; return; }
+  tb.innerHTML = list.map(p=>`
+    <tr>
+      <td>${esc(p.barcode)}</td>
+      <td>${esc(p.name)} <small style="color:#94a3b8">(${esc(p.unit)})</small></td>
+      <td>${money(p.cost)}</td>
+      <td>${money(p.price)}</td>
+      <td style="font-weight:700">${p.qty}</td>
+      <td>${p.min}</td>
+      <td>${statusOf(p)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn ghost" style="padding:6px 10px" onclick="loadProductToForm('${p.id}')">تعديل</button>
+        <button class="btn red" style="padding:6px 10px" onclick="deleteProduct('${p.id}')">حذف</button>
+      </td>
+    </tr>`).join('');
+}
+
+/* ================== نقطة البيع ================== */
+document.getElementById('posBarcode').addEventListener('keydown', e=>{
+  if(e.key === 'Enter'){ e.preventDefault(); addByBarcode(); }
+});
+function addByBarcode(){
+  const inp = document.getElementById('posBarcode');
+  const code = inp.value.trim();
+  if(!code) return;
+  addToCartByBarcode(code);
+  inp.value = ''; inp.focus();
+}
+function addToCartByBarcode(code){
+  const p = db.products.find(x=>x.barcode===code);
+  if(!p){ alert('❌ لا يوجد منتج بهذا الباركود: ' + code); return; }
+  if(p.qty <= 0){ alert('⚠️ المنتج "' + p.name + '" غير متوفر في المخزون'); return; }
+
+  const line = cart.find(l=>l.pid===p.id);
+  const inCart = line ? line.qty : 0;
+  if(inCart + 1 > p.qty){ alert('⚠️ الكمية المتاحة من "' + p.name + '" هي ' + p.qty); return; }
+
+  if(line) line.qty += 1;
+  else cart.push({ pid:p.id, barcode:p.barcode, name:p.name, price:p.price, cost:p.cost, qty:1 });
+
+  renderCart();
+}
+
+function changeQty(pid, delta){
+  const line = cart.find(l=>l.pid===pid);
+  if(!line) return;
+  const p = db.products.find(x=>x.id===pid);
+  const newQty = line.qty + delta;
+  if(newQty <= 0){
+    cart = cart.filter(l=>l.pid!==pid);
+  }else if(newQty > p.qty){
+    alert('⚠️ الكمية المتاحة فقط ' + p.qty);
+    return;
+  }else{
+    line.qty = newQty;
+  }
+  renderCart();
+}
+
+function removeFromCart(pid){
+  cart = cart.filter(l=>l.pid!==pid);
+  renderCart();
+}
+
+function renderCart(){
+  const tb = document.getElementById('cartBody');
+  if(!cart.length){
+    tb.innerHTML = '<tr><td colspan="6" class="empty">السلة فارغة — امسح باركود لإضافة أصناف</td></tr>';
+    document.getElementById('tTotal').textContent  = '0.00';
+    document.getElementById('tCost').textContent   = '0.00';
+    document.getElementById('tProfit').textContent = '0.00';
+    calcChange();
+    return;
+  }
+  let total=0, cost=0;
+  tb.innerHTML = cart.map(l=>{
+    const lineTotal = l.price * l.qty;
+    const lineCost  = l.cost  * l.qty;
+    total += lineTotal;
+    cost  += lineCost;
+    return `<tr>
+      <td>${esc(l.name)}</td>
+      <td>${esc(l.barcode)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn ghost" style="padding:4px 8px" onclick="changeQty('${l.pid}',-1)">−</button>
+        <b style="margin:0 8px">${l.qty}</b>
+        <button class="btn ghost" style="padding:4px 8px" onclick="changeQty('${l.pid}',1)">+</button>
+      </td>
+      <td>${money(l.price)}</td>
+      <td>${money(lineTotal)}</td>
+      <td><button class="btn red" style="padding:4px 8px" onclick="removeFromCart('${l.pid}')">✕</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('tTotal').textContent  = money(total);
+  document.getElementById('tCost').textContent   = money(cost);
+  document.getElementById('tProfit').textContent = money(total - cost);
+  calcChange();
+}
+
+function calcChange(){
+  const total = parseFloat(document.getElementById('tTotal').textContent) || 0;
+  const paid  = parseFloat(document.getElementById('paid').value) || 0;
+  document.getElementById('change').value = money(Math.max(0, paid - total));
+}
+
+function clearCart(){
+  if(cart.length && !confirm('إلغاء الفاتورة الحالية؟')) return;
+  cart = [];
+  document.getElementById('paid').value = 0;
+  renderCart();
+}
+
+function issueInvoice(){
+  if(!cart.length){ alert('السلة فارغة'); return; }
+
+  // التحقق من المخزون مرة أخيرة
+  for(const l of cart){
+    const p = db.products.find(x=>x.id===l.pid);
+    if(!p || p.qty < l.qty){
+      alert('⚠️ الكمية غير كافية للمنتج: ' + (p?p.name:l.name));
+      return;
+    }
+  }
+
+  let total=0, cost=0;
+  const items = cart.map(l=>{
+    const lineTotal = l.price * l.qty;
+    const lineCost  = l.cost  * l.qty;
+    total += lineTotal;
+    cost  += lineCost;
+    return { pid:l.pid, barcode:l.barcode, name:l.name, price:l.price, cost:l.cost, qty:l.qty };
+  });
+
+  // خصم من المخزون
+  cart.forEach(l=>{
+    const p = db.products.find(x=>x.id===l.pid);
+    if(p) p.qty = Math.max(0, +(p.qty - l.qty).toFixed(2));
+  });
+
+  const inv = {
+    id: uid(),
+    no: db.invNo++,
+    date: new Date().toLocaleString('ar-EG'),
+    items,
+    total,
+    cost,
+    profit: total - cost
+  };
+  db.invoices.unshift(inv);
+  saveDB();
+
+  cart = [];
+  document.getElementById('paid').value = 0;
+  renderCart();
+  renderAll();
+  alert('✅ تم إصدار الفاتورة رقم ' + inv.no + '\nالإجمالي: ' + money(total));
+}
+
+/* ================== المخزون والتنبيهات ================== */
+function renderStock(){
+  let costVal=0, saleVal=0, low=0;
+  const tb = document.getElementById('stockBody');
+  const alerts = document.getElementById('alertsBox');
+
+  if(!db.products.length){
+    tb.innerHTML = '<tr><td colspan="7" class="empty">لا توجد منتجات</td></tr>';
+    alerts.innerHTML = '<div class="empty">لا توجد تنبيهات</div>';
+  }else{
+    const lowItems = [];
+    tb.innerHTML = db.products.map(p=>{
+      costVal += p.cost * p.qty;
+      saleVal += p.price * p.qty;
+      if(p.qty <= p.min){ low++; lowItems.push(p); }
+      return `<tr>
+        <td>${esc(p.barcode)}</td>
+        <td>${esc(p.name)}</td>
+        <td style="font-weight:700">${p.qty}</td>
+        <td>${p.min}</td>
+        <td>${money(p.cost)}</td>
+        <td>${money(p.cost * p.qty)}</td>
+        <td>${statusOf(p)}</td>
+      </tr>`;
+    }).join('');
+
+    if(lowItems.length){
+      alerts.innerHTML = lowItems.map(p=>`
+        <div class="alert-item">
+          <div>
+            <b>${esc(p.name)}</b><br>
+            <small>المتبقي: ${p.qty} | الحد الأدنى: ${p.min}</small>
+          </div>
+          <span class="badge ${p.qty<=0?'b-out':'b-low'}">${p.qty<=0?'نفد':'تحت الحد'}</span>
+        </div>`).join('');
+    }else{
+      alerts.innerHTML = '<div class="empty" style="color:#16a34a">✅ كل الأصناف فوق الحد الأدنى</div>';
+    }
+  }
+
+  document.getElementById('sCount').textContent   = db.products.length;
+  document.getElementById('sCostVal').textContent = money(costVal);
+  document.getElementById('sSaleVal').textContent = money(saleVal);
+  document.getElementById('sLow').textContent     = low;
+}
+
+/* ================== الفواتير ================== */
+function renderInvoices(){
+  const tb = document.getElementById('invBody');
+  if(!db.invoices.length){
+    tb.innerHTML = '<tr><td colspan="6" class="empty">لا توجد فواتير بعد</td></tr>';
+    return;
+  }
+  tb.innerHTML = db.invoices.map(inv=>`
+    <tr>
+      <td><b>#${inv.no}</b></td>
+      <td>${esc(inv.date)}</td>
+      <td>${inv.items.length}</td>
+      <td>${money(inv.total)}</td>
+      <td style="color:#16a34a">${money(inv.profit)}</td>
+      <td>
+        <button class="btn ghost" style="padding:6px 10px" onclick="showInvoice('${inv.id}')">عرض</button>
+      </td>
+    </tr>`).join('');
+}
+
+function showInvoice(id){
+  const inv = db.invoices.find(x=>x.id===id);
+  if(!inv) return;
+  document.getElementById('invTitle').textContent = 'فاتورة رقم #' + inv.no + ' — ' + inv.date;
+  let html = `<table>
+    <thead><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead>
+    <tbody>`;
+  inv.items.forEach(it=>{
+    html += `<tr>
+      <td>${esc(it.name)}</td>
+      <td>${it.qty}</td>
+      <td>${money(it.price)}</td>
+      <td>${money(it.price*it.qty)}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>
+    <div class="totals" style="margin-top:12px">
+      <div>الإجمالي: <b>${money(inv.total)}</b></div>
+      <div>الكلفة: <b>${money(inv.cost)}</b></div>
+      <div>الربح: <b>${money(inv.profit)}</b></div>
+    </div>`;
+  document.getElementById('invDetails').innerHTML = html;
+  document.getElementById('invModal').classList.remove('hidden');
+}
+
+/* ================== التقارير ================== */
+function renderReports(){
+  let sales=0, cost=0, profit=0;
+  db.invoices.forEach(inv=>{
+    sales  += inv.total;
+    cost   += inv.cost;
+    profit += inv.profit;
+  });
+  let stockVal = 0;
+  db.products.forEach(p=> stockVal += p.cost * p.qty);
+
+  document.getElementById('rSales').textContent  = money(sales);
+  document.getElementById('rCost').textContent   = money(cost);
+  document.getElementById('rProfit').textContent = money(profit);
+  document.getElementById('rInv').textContent    = db.invoices.length;
+  document.getElementById('rStock').textContent  = money(stockVal);
+}
+
+/* ================== النسخ الاحتياطي ================== */
+function exportData(){
+  const blob = new Blob([JSON.stringify(db, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'food_store_backup_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function importData(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    try{
+      const data = JSON.parse(ev.target.result);
+      if(!data.products || !Array.isArray(data.products)) throw new Error('ملف غير صالح');
+      if(!confirm('سيتم استبدال كل البيانات الحالية. هل أنت متأكد؟')) return;
+      db = data;
+      if(!db.invNo) db.invNo = (db.invoices?.length||0) + 1;
+      if(!db.invoices) db.invoices = [];
+      saveDB();
+      cart = [];
+      renderAll();
+      alert('✅ تم الاستيراد بنجاح');
+    }catch(err){
+      alert('❌ فشل الاستيراد: ' + err.message);
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+}
+function clearAll(){
+  if(!confirm('⚠️ سيتم حذف كل المنتجات والفواتير نهائياً. هل أنت متأكد؟')) return;
+  if(!confirm('تأكيد نهائي: حذف كل البيانات؟')) return;
+  localStorage.removeItem(LS_KEY);
+  db = seedDB();
+  cart = [];
+  saveDB();
+  renderAll();
+  alert('تم حذف البيانات وإعادة التهيئة');
+}
+
+/* ================== التحديث الشامل ================== */
+function renderAll(){
+  renderProducts();
+  renderStock();
+  renderInvoices();
+  renderReports();
+  renderCart();
+}
+
+/* تشغيل أولي */
+renderAll();
+document.getElementById('posBarcode').focus();
+</script>
+</body>
+</html>
